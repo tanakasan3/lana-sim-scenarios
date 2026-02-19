@@ -6,7 +6,11 @@ use std::time::Duration;
 
 use es_entity::clock::{ClockController, ClockHandle};
 use futures::StreamExt;
-use lana_app::{app::LanaApp, primitives::*};
+use lana_app::{
+    app::LanaApp, 
+    primitives::*,
+    terms::{DisbursalPolicy, FacilityDuration, InterestInterval, ObligationDuration, TermValues},
+};
 use lana_events::{CoreCreditCollectionEvent, CoreCreditEvent, LanaEvent};
 use rust_decimal_macros::dec;
 use tracing::{event, instrument};

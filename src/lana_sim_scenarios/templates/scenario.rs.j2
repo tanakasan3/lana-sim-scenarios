@@ -6,7 +6,11 @@ use std::time::Duration;
 
 use es_entity::clock::{ClockController, ClockHandle};
 use futures::StreamExt;
-use lana_app::{app::LanaApp, primitives::*};
+use lana_app::{
+    app::LanaApp, 
+    primitives::*,
+    terms::{DisbursalPolicy, FacilityDuration, InterestInterval, ObligationDuration, TermValues},
+};
 use lana_events::{CoreCreditCollectionEvent, CoreCreditEvent, LanaEvent};
 use rust_decimal_macros::dec;
 use tracing::{event, instrument};
@@ -49,7 +53,7 @@ pub async fn {{ scenario.fn_name }}_scenario(
     helpers::make_deposit(&sub, app, &{{ action.params.entity.replace('_deposit', '') }}_id, deposit_amount).await?;
 {% elif action.action_type == "create_proposal" %}
     // Create facility proposal
-    let cf_terms = helpers::std_terms();  // TODO: customize terms from {{ action.params.get('terms', {}) }}
+    let cf_terms = {{ action.params.terms.to_rust_builder() }};
     let cf_amount = UsdCents::try_from_usd(dec!({{ action.params.amount_usd }}))?;
     let cf_proposal = app
         .create_facility_proposal(&sub, {{ action.params.get('customer_ref', 'customer_1') }}_id, cf_amount, cf_terms, None::<CustodianId>)

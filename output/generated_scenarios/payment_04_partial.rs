@@ -6,7 +6,11 @@ use std::time::Duration;
 
 use es_entity::clock::{ClockController, ClockHandle};
 use futures::StreamExt;
-use lana_app::{app::LanaApp, primitives::*};
+use lana_app::{
+    app::LanaApp, 
+    primitives::*,
+    terms::{DisbursalPolicy, FacilityDuration, InterestInterval, ObligationDuration, TermValues},
+};
 use lana_events::{CoreCreditCollectionEvent, CoreCreditEvent, LanaEvent};
 use rust_decimal_macros::dec;
 use tracing::{event, instrument};
@@ -41,7 +45,21 @@ pub async fn payment_04_partial_scenario(
     }
 
     // Create facility proposal
-    let cf_terms = helpers::std_terms();  // TODO: customize terms from {'annual_rate': '0.10', 'duration': {'Months': 6}, 'interest_due_duration_from_accrual': {'Days': 30}, 'accrual_cycle_interval': 'EndOfMonth', 'accrual_interval': 'EndOfDay', 'one_time_fee_rate': '0.01', 'liquidation_cvl': {'Finite': '1.10'}, 'margin_call_cvl': {'Finite': '1.25'}, 'initial_cvl': {'Finite': '1.40'}, 'disbursal_policy': 'SingleDisbursal'}
+    let cf_terms = TermValues::builder()
+        .annual_rate(dec!(10.00))
+        .initial_cvl(dec!(140.00))
+        .margin_call_cvl(dec!(125.00))
+        .liquidation_cvl(dec!(110.00))
+        .duration(FacilityDuration::Months(6))
+        .interest_due_duration_from_accrual(ObligationDuration::Days(30))
+        .obligation_overdue_duration_from_due(ObligationDuration::Days(50))
+        .obligation_liquidation_duration_from_due(None)
+        .accrual_interval(InterestInterval::EndOfDay)
+        .accrual_cycle_interval(InterestInterval::EndOfMonth)
+        .one_time_fee_rate(dec!(0.01))
+        .disbursal_policy(DisbursalPolicy::SingleDisbursal)
+        .build()
+        .expect("terms builder should be valid");
     let cf_amount = UsdCents::try_from_usd(dec!(5000.0))?;
     let cf_proposal = app
         .create_facility_proposal(&sub, customer_1_id, cf_amount, cf_terms, None::<CustodianId>)
