@@ -18,6 +18,8 @@ help:
 	@echo "  make convert-all    Convert all scenarios from lana-scenario-gen"
 	@echo "  make analyze        Analyze scenario mappings"
 	@echo "  make deploy         Copy generated code to lana-bank"
+	@echo "  make patch          Deploy + patch lana-bank to call generated scenarios"
+	@echo "  make unpatch        Remove patch from lana-bank"
 	@echo "  make clean          Remove venv and outputs"
 	@echo ""
 	@echo "Single scenario:"
@@ -75,6 +77,31 @@ deploy: $(VENV)/bin/activate convert-all
 	@mkdir -p $(LANA_BANK_REPO)/lana/sim-bootstrap/src/scenarios/generated
 	cp -r $(OUTPUT_DIR)/* $(LANA_BANK_REPO)/lana/sim-bootstrap/src/scenarios/generated/
 	@echo "✓ Deployed to $(LANA_BANK_REPO)/lana/sim-bootstrap/src/scenarios/generated/"
+
+# Patch lana-bank to call generated scenarios
+SCENARIOS_MOD := $(LANA_BANK_REPO)/lana/sim-bootstrap/src/scenarios/mod.rs
+
+patch: deploy
+	@if grep -q "mod generated;" "$(SCENARIOS_MOD)"; then \
+		echo "Already patched"; \
+	else \
+		echo "Patching $(SCENARIOS_MOD)..."; \
+		sed -i '/^mod timely_payments;/a mod generated;' "$(SCENARIOS_MOD)"; \
+		awk '/interest_under_payment_scenario.*\)$$/{found=1} found && /\.await\?;/{print; print "    generated::run(sub, app, clock, clock_ctrl).await?;"; found=0; next} 1' \
+			"$(SCENARIOS_MOD)" > "$(SCENARIOS_MOD).tmp" && mv "$(SCENARIOS_MOD).tmp" "$(SCENARIOS_MOD)"; \
+		echo "✓ Patched lana-bank to include generated scenarios"; \
+	fi
+
+# Undo patch
+unpatch:
+	@if grep -q "mod generated;" "$(SCENARIOS_MOD)"; then \
+		echo "Removing patch from $(SCENARIOS_MOD)..."; \
+		sed -i '/^mod generated;$$/d' "$(SCENARIOS_MOD)"; \
+		sed -i '/generated::run(sub, app, clock, clock_ctrl)/d' "$(SCENARIOS_MOD)"; \
+		echo "✓ Removed generated scenario integration"; \
+	else \
+		echo "Not patched, nothing to undo"; \
+	fi
 
 # Lint
 lint: $(VENV)/bin/activate
