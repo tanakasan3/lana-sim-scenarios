@@ -191,6 +191,9 @@ class Scenario:
     complete_facility: bool = True
     stop_when_principal_only: bool = False
     
+    # File metadata
+    file_prefix: str = ""  # e.g., "01_" from "01_timely_payments.yml"
+    
     @property
     def fn_name(self) -> str:
         """Get the Rust function name."""
@@ -198,7 +201,9 @@ class Scenario:
     
     @property
     def module_name(self) -> str:
-        """Get the Rust module name."""
+        """Get the Rust module name (with prefix if set)."""
+        if self.file_prefix:
+            return f"{self.file_prefix}{self.fn_name}"
         return self.fn_name
     
     @property
@@ -283,7 +288,23 @@ class ScenarioParser:
         """Parse a single scenario file."""
         with open(path) as f:
             data = yaml.safe_load(f)
-        return self.parse_dict(data)
+        
+        # Extract numeric prefix from filename (e.g., "01_" from "01_timely_payments.yml")
+        # Prefix with 's' to make valid Rust identifier (s01_ instead of 01_)
+        filename = path.stem
+        file_prefix = ""
+        if filename and filename[0].isdigit():
+            # Find where the prefix ends (after digits and underscore)
+            for i, char in enumerate(filename):
+                if char == '_':
+                    file_prefix = "s" + filename[:i+1]  # 's' + "01_" = "s01_"
+                    break
+                elif not char.isdigit():
+                    break
+        
+        scenario = self.parse_dict(data)
+        scenario.file_prefix = file_prefix
+        return scenario
     
     def parse_dict(self, data: dict) -> Scenario:
         """Parse scenario from a dictionary."""
