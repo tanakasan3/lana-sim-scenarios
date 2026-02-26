@@ -108,6 +108,11 @@ steps:
 - `schedule_disbursal` - Schedule a future disbursal
 - `complete_facility` - Close the facility
 
+### Price Control
+- `set_btc_price` - Change BTC price at a specific time
+  - `after_days: 45` - Days after facility activation
+  - `price_usd: 35000` - New price in USD
+
 ### Payment Behavior
 - `on_obligation_due` - Define how to handle obligations
   - `behavior: pay_immediately` - Pay all on time
@@ -143,6 +148,35 @@ The generator recognizes standard term configurations:
 | `std_terms_with_liquidation` | 3 months | 60 days | Single |
 | `std_terms_12m` | 12 months | No | Multiple |
 
+### BTC Price Manipulation
+
+Control the BTC price to test margin calls and liquidation scenarios:
+
+```yaml
+# Set initial price on facility activation
+initial_btc_price_usd: 70000
+
+steps:
+  # ... setup steps ...
+  
+  # Change price after 45 days
+  - action: set_btc_price
+    after_days: 45
+    price_usd: 35000  # 50% drop triggers margin call
+```
+
+### Timing Control
+
+Set an explicit start date or relative offset:
+
+```yaml
+# Explicit date
+start_date: "2025-06-15"
+
+# Or relative offset (days in the past)
+start_offset_days: -60
+```
+
 ## Included Scenarios
 
 Based on the existing sim-bootstrap patterns:
@@ -155,6 +189,8 @@ Based on the existing sim-bootstrap patterns:
 | `04_multiple_disbursals` | 3 disbursals across months | Completed |
 | `05_principal_under_payment` | Interest paid, principal never | Active |
 | `06_interest_under_payment` | No payments at all | Active |
+| `07_custom_terms` | Non-standard inline terms | Completed |
+| `08_price_drop_margin_call` | 50% BTC price drop mid-loan | Completed |
 
 ## Generated Code
 
