@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from jinja2 import Environment, PackageLoader
-from .scenario_parser import Scenario, ObligationBehavior, ScheduledDisbursal
+from .scenario_parser import Scenario, ObligationBehavior, ScheduledDisbursal, PriceChange
 
 
 class RustGenerator:
@@ -32,6 +32,23 @@ class RustGenerator:
     def _generate_on_activation_code(self, scenario: Scenario) -> str:
         """Generate code to run on facility activation."""
         lines = []
+        
+        # Set initial BTC price if specified
+        if scenario.initial_btc_price_usd:
+            price_cents = scenario.initial_btc_price_usd * 100
+            lines.append("")
+            lines.append(f"// Set initial BTC price to ${scenario.initial_btc_price_usd:,}")
+            lines.append(f"app.outbox()")
+            lines.append(f"    .publish_ephemeral(")
+            lines.append(f"        lana_app::price::PRICE_UPDATED_EVENT_TYPE,")
+            lines.append(f"        lana_app::price::CorePriceEvent::PriceUpdated {{")
+            lines.append(f"            price: PriceOfOneBTC::new(UsdCents::from({price_cents}_u64)),")
+            lines.append(f"            timestamp: chrono::Utc::now(),")
+            lines.append(f"        }},")
+            lines.append(f"    )")
+            lines.append(f"    .await?;")
+            lines.append(f"tokio::time::sleep(std::time::Duration::from_millis(100)).await;")
+            lines.append(f"event!(tracing::Level::INFO, price_usd = {scenario.initial_btc_price_usd}, \"Initial BTC price set\");")
         
         # Check for immediate disbursal
         has_immediate_disbursal = any(
@@ -87,6 +104,16 @@ class RustGenerator:
                 lines.append(f"    let mut disbursal_{i+1}_done = false;")
             lines.append("")
         
+        # Price changes
+        if scenario.price_changes:
+            for i, price_change in enumerate(scenario.price_changes, 1):
+                lines.append(f"    let price_change_{i}_date = activation_date + chrono::Duration::days({price_change.after_days});")
+                lines.append(f"    let mut price_change_{i}_done = false;")
+            lines.append("")
+        
+        # Need current_date variable if we have disbursals or price changes
+        needs_current_date = scenario.scheduled_disbursals or scenario.price_changes
+        
         # Main loop
         lines.append("    loop {")
         lines.append("        tokio::select! {")
@@ -103,10 +130,13 @@ class RustGenerator:
         lines.append("            }")
         lines.append("            _ = tokio::time::sleep(EVENT_WAIT_TIMEOUT) => {")
         
-        # Scheduled disbursals in timeout block
-        if scenario.scheduled_disbursals:
+        # Get current date if needed
+        if needs_current_date:
             lines.append("                let current_date = clock.today();")
             lines.append("")
+        
+        # Scheduled disbursals in timeout block
+        if scenario.scheduled_disbursals:
             for i, disbursal in enumerate(scenario.scheduled_disbursals, 1):
                 lines.append(f"                if !disbursal_{i+1}_done && current_date >= disbursal_{i+1}_date {{")
                 lines.append(f"                    app.credit()")
@@ -116,8 +146,29 @@ class RustGenerator:
                 lines.append("                }")
                 lines.append("")
         
+        # Price changes in timeout block
+        if scenario.price_changes:
+            for i, price_change in enumerate(scenario.price_changes, 1):
+                price_cents = price_change.price_usd * 100  # Convert USD to cents
+                lines.append(f"                if !price_change_{i}_done && current_date >= price_change_{i}_date {{")
+                lines.append(f"                    // Set BTC price to ${price_change.price_usd:,}")
+                lines.append(f"                    app.outbox()")
+                lines.append(f"                        .publish_ephemeral(")
+                lines.append(f"                            lana_app::price::PRICE_UPDATED_EVENT_TYPE,")
+                lines.append(f"                            lana_app::price::CorePriceEvent::PriceUpdated {{")
+                lines.append(f"                                price: PriceOfOneBTC::new(UsdCents::from({price_cents}_u64)),")
+                lines.append(f"                                timestamp: chrono::Utc::now(),")
+                lines.append(f"                            }},")
+                lines.append(f"                        )")
+                lines.append(f"                        .await?;")
+                lines.append(f"                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;")
+                lines.append(f"                    event!(tracing::Level::INFO, price_usd = {price_change.price_usd}, \"BTC price changed\");")
+                lines.append(f"                    price_change_{i}_done = true;")
+                lines.append("                }")
+                lines.append("")
+        
         if scenario.expected_duration_days:
-            if scenario.scheduled_disbursals:
+            if needs_current_date:
                 lines.append("                if current_date >= expected_end_date {")
             else:
                 lines.append("                if clock.today() >= expected_end_date {")

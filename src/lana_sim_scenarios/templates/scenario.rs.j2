@@ -14,6 +14,9 @@ use futures::StreamExt;
 use lana_app::{
     app::LanaApp, 
     primitives::*,
+{% if scenario.has_price_changes %}
+    price::PriceOfOneBTC,
+{% endif %}
     terms::{DisbursalPolicy, FacilityDuration, InterestInterval, ObligationDuration, TermValues},
 };
 use lana_events::{CoreCreditCollectionEvent, CoreCreditEvent, LanaEvent{% if scenario.has_obligation_type_filtering %}, ObligationType{% endif %}};

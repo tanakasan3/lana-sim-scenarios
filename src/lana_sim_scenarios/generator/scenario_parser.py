@@ -137,6 +137,13 @@ class ScheduledDisbursal:
     amount_usd: int
 
 
+@dataclass
+class PriceChange:
+    """A scheduled BTC price change."""
+    after_days: int  # Days after activation
+    price_usd: int   # Price in USD (e.g., 70000 = $70,000)
+
+
 @dataclass 
 class ScenarioStep:
     """A single step in a scenario."""
@@ -174,6 +181,8 @@ class Scenario:
     # Behavior
     obligation_behavior: ObligationBehavior = field(default_factory=ObligationBehavior)
     scheduled_disbursals: list[ScheduledDisbursal] = field(default_factory=list)
+    price_changes: list[PriceChange] = field(default_factory=list)
+    initial_btc_price_usd: Optional[int] = None  # Initial BTC price in USD
     
     # Steps (raw)
     steps: list[ScenarioStep] = field(default_factory=list)
@@ -250,7 +259,13 @@ class Scenario:
     def tracks_activation_date(self) -> bool:
         """Check if we need to track activation date."""
         return (self.expected_duration_days is not None or 
-                len(self.scheduled_disbursals) > 0)
+                len(self.scheduled_disbursals) > 0 or
+                len(self.price_changes) > 0)
+    
+    @property
+    def has_price_changes(self) -> bool:
+        """Check if we have any price manipulation."""
+        return self.initial_btc_price_usd is not None or len(self.price_changes) > 0
     
     @property
     def approval_timeout_days(self) -> int:
@@ -280,6 +295,8 @@ class ScenarioParser:
         steps = []
         obligation_behavior = ObligationBehavior()
         scheduled_disbursals = []
+        price_changes = []
+        initial_btc_price_usd = data.get("initial_btc_price_usd")
         complete_facility = True
         stop_when_principal_only = False
         
@@ -294,6 +311,11 @@ class ScenarioParser:
                 scheduled_disbursals.append(ScheduledDisbursal(
                     after_days=step.params.get("after_days", 30),
                     amount_usd=step.params.get("amount_usd", 0),
+                ))
+            elif step.action == "set_btc_price":
+                price_changes.append(PriceChange(
+                    after_days=step.params.get("after_days", 0),
+                    price_usd=step.params.get("price_usd", 70000),
                 ))
             elif step.action == "when_only_principal_remains":
                 if step.params.get("then") == "stop":
@@ -328,6 +350,8 @@ class ScenarioParser:
             expected_duration_days=data.get("expected_duration_days"),
             obligation_behavior=obligation_behavior,
             scheduled_disbursals=scheduled_disbursals,
+            price_changes=price_changes,
+            initial_btc_price_usd=initial_btc_price_usd,
             steps=steps,
             complete_facility=complete_facility,
             stop_when_principal_only=stop_when_principal_only,

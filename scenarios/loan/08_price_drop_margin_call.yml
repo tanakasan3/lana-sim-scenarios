@@ -1,0 +1,76 @@
+# Loan 08: Price Drop / Margin Call
+# Pattern: BTC price drops 50% mid-scenario, triggering margin call territory
+# Based on: 01_timely_payments but with price manipulation
+name: price_drop_margin_call
+description: "BTC price drops 50% mid-loan, CVL drops below margin call threshold"
+customer_suffix: "8-price-drop"
+
+# Timing
+expected_duration_days: 95
+
+# Initial BTC price: $70,000
+initial_btc_price_usd: 70000
+
+# Standard terms with liquidation enabled (so margin calls matter)
+terms:
+  annual_rate: 12
+  duration_months: 3
+  interest_due_days: 0
+  overdue_days: 50
+  liquidation_days: 60      # Enable liquidation
+  accrual_interval: EndOfDay
+  accrual_cycle_interval: EndOfMonth
+  one_time_fee_rate: 0.01
+  initial_cvl: 140          # Need 140% collateral to start
+  margin_call_cvl: 125      # Margin call at 125%
+  liquidation_cvl: 105      # Liquidation at 105%
+  disbursal_policy: SingleDisbursal
+
+# Amounts
+# With $70,000 BTC and 230 BTC collateral = $16.1M collateral value
+# $10M facility = 161% CVL (above 140% initial requirement)
+# After 50% price drop ($35,000): collateral = $8.05M = 80.5% CVL (below liquidation!)
+facility_amount_usd: 10_000_000
+deposit_amount_usd: 10_000_000
+collateral_btc: 230
+
+steps:
+  # Setup
+  - action: create_customer
+    suffix: "8-price-drop"
+  
+  - action: make_deposit
+    amount_usd: 10_000_000
+  
+  # Create facility (will use std_terms_with_liquidation)
+  - action: create_proposal
+    amount_usd: 10_000_000
+    terms: std_terms_with_liquidation
+  
+  - action: customer_approve
+  
+  - action: wait_for_approval
+  
+  # Activate with collateral
+  - action: update_collateral
+    collateral_btc: 230
+  
+  - action: wait_for_activation
+  
+  # Price drop after 45 days (mid-way through 3-month loan)
+  # This drops CVL from ~161% to ~80%, triggering liquidation territory
+  - action: set_btc_price
+    after_days: 45
+    price_usd: 35000
+  
+  # Payment behavior - pay on time despite margin call
+  - action: on_obligation_due
+    behavior: pay_immediately
+  
+  # End condition
+  - action: advance_to_expected_end
+    days: 95
+  
+  - action: pay_remaining_outstanding
+  
+  - action: complete_facility
