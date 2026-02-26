@@ -5,8 +5,8 @@
 use std::time::Duration;
 
 use es_entity::clock::{ClockController, ClockHandle};
-{% if scenario.start_offset_days %}
-use es_entity::prelude::chrono::{self, Utc};
+{% if scenario.has_clock_reset %}
+use es_entity::prelude::chrono::{self, TimeZone, Utc};
 {% else %}
 use es_entity::prelude::chrono;
 {% endif %}
@@ -41,7 +41,13 @@ pub async fn {{ scenario.fn_name }}_scenario(
 ) -> anyhow::Result<()> {
     event!(tracing::Level::INFO, "Starting {{ scenario.name }} scenario");
 
-{% if scenario.start_offset_days %}
+{% if scenario.start_date %}
+    // Reset clock to explicit date: {{ scenario.start_date }}
+    {% set parts = scenario.start_date_parts %}
+    let target_time = Utc.with_ymd_and_hms({{ parts[0] }}, {{ parts[1] }}, {{ parts[2] }}, 12, 0, 0).unwrap();
+    clock_ctrl.reset_to(target_time);
+
+{% elif scenario.start_offset_days %}
     // Reset clock to {{ scenario.start_offset_days }} days from now
     let target_time = Utc::now() - chrono::Duration::days({{ scenario.start_offset_days|abs }});
     clock_ctrl.reset_to(target_time);

@@ -164,9 +164,11 @@ class Scenario:
     
     # Terms
     terms: TermsConfig
+    use_custom_terms: bool = False  # True = use inline terms, False = use helper
     
     # Timing
-    start_offset_days: Optional[int] = None  # Negative = past
+    start_date: Optional[str] = None  # Explicit date: "YYYY-MM-DD"
+    start_offset_days: Optional[int] = None  # Relative offset (negative = past)
     expected_duration_days: Optional[int] = None
     
     # Behavior
@@ -193,10 +195,32 @@ class Scenario:
     @property
     def terms_builder(self) -> str:
         """Get Rust code for terms."""
+        # If explicitly using custom terms, always use builder
+        if self.use_custom_terms:
+            return self.terms.to_rust_builder()
+        # Otherwise try to match a helper
         helper = self.terms.to_helper_name()
         if helper:
             return helper
         return self.terms.to_rust_builder()
+    
+    @property
+    def has_start_date(self) -> bool:
+        """Check if we have an explicit start date."""
+        return self.start_date is not None
+    
+    @property
+    def has_clock_reset(self) -> bool:
+        """Check if we need to reset the clock."""
+        return self.start_date is not None or self.start_offset_days is not None
+    
+    @property
+    def start_date_parts(self) -> Optional[tuple[int, int, int]]:
+        """Parse start_date into (year, month, day) tuple."""
+        if not self.start_date:
+            return None
+        parts = self.start_date.split("-")
+        return (int(parts[0]), int(parts[1]), int(parts[2]))
     
     @property
     def has_obligation_type_filtering(self) -> bool:
@@ -215,12 +239,12 @@ class Scenario:
     @property
     def has_approval_timeout(self) -> bool:
         """Check if we need approval timeout logic."""
-        return self.start_offset_days is not None
+        return self.has_clock_reset
     
     @property
     def has_activation_timeout(self) -> bool:
         """Check if we need activation timeout logic."""
-        return self.start_offset_days is not None
+        return self.has_clock_reset
     
     @property
     def tracks_activation_date(self) -> bool:
@@ -281,6 +305,15 @@ class ScenarioParser:
         if not has_complete_step:
             complete_facility = False
         
+        # Determine if custom terms should be used
+        # Check if any create_proposal step specifies terms: custom
+        use_custom_terms = data.get("use_custom_terms", False)
+        for step in steps:
+            if step.action == "create_proposal":
+                step_terms = step.params.get("terms")
+                if step_terms == "custom" or step_terms == "inline":
+                    use_custom_terms = True
+        
         return Scenario(
             name=data.get("name", "unnamed"),
             description=data.get("description", ""),
@@ -289,6 +322,8 @@ class ScenarioParser:
             deposit_amount_usd=data.get("deposit_amount_usd", 10_000_000),
             collateral_btc=data.get("collateral_btc", 230),
             terms=terms,
+            use_custom_terms=use_custom_terms,
+            start_date=data.get("start_date"),
             start_offset_days=data.get("start_offset_days"),
             expected_duration_days=data.get("expected_duration_days"),
             obligation_behavior=obligation_behavior,
