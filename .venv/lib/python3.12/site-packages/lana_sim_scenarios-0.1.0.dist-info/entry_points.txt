@@ -1,2 +1,0 @@
-[console_scripts]
-lana-sim = lana_sim_scenarios.cli:main

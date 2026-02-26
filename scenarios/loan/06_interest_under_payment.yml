@@ -1,0 +1,56 @@
+# Loan 06: Interest Under Payment
+# Based on: sim-bootstrap/src/scenarios/interest_under_payment.rs
+# Pattern: Never pay anything → facility active with no payments
+name: interest_under_payment
+description: "No payments made at all - facility left active with full outstanding"
+customer_suffix: "5-interest-under-payment"
+
+terms:
+  annual_rate: 12
+  duration_months: 3
+  interest_due_days: 0
+  overdue_days: 50
+  liquidation_days: null
+  accrual_interval: EndOfDay
+  accrual_cycle_interval: EndOfMonth
+  one_time_fee_rate: 0.01
+  initial_cvl: 140
+  margin_call_cvl: 125
+  liquidation_cvl: 105
+  disbursal_policy: SingleDisbursal
+
+facility_amount_usd: 10_000_000
+deposit_amount_usd: 10_000_000
+collateral_btc: 230
+
+# Start 60 days in the past
+start_offset_days: -60
+
+steps:
+  - action: create_customer
+    suffix: "5-interest-under-payment"
+  
+  - action: make_deposit
+    amount_usd: 10_000_000
+  
+  - action: create_proposal
+    amount_usd: 10_000_000
+    terms: std_terms
+  
+  - action: customer_approve
+  
+  - action: wait_for_approval
+    timeout_days: 30
+  
+  - action: update_collateral
+    collateral_btc: 230
+  
+  - action: wait_for_activation
+    timeout_days: 30
+  
+  # Never pay anything
+  - action: on_obligation_due
+    behavior: skip_all
+  
+  # Immediately stop after activation - don't make any payments
+  # Final state: facility active, interest accruing, no payments made

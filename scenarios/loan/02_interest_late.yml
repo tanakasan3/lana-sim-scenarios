@@ -1,0 +1,65 @@
+# Loan 02: Interest Late
+# Based on: sim-bootstrap/src/scenarios/interest_late.rs
+# Pattern: Skip first interest payment 90+ days, then pay → facility completed
+name: interest_late
+description: "First interest payment delayed 90+ days, all others on time"
+customer_suffix: "2-interest-late"
+
+terms:
+  annual_rate: 12
+  duration_months: 3
+  interest_due_days: 0
+  overdue_days: 50
+  liquidation_days: null
+  accrual_interval: EndOfDay
+  accrual_cycle_interval: EndOfMonth
+  one_time_fee_rate: 0.01
+  initial_cvl: 140
+  margin_call_cvl: 125
+  liquidation_cvl: 105
+  disbursal_policy: SingleDisbursal
+
+facility_amount_usd: 10_000_000
+deposit_amount_usd: 10_000_000
+collateral_btc: 230
+expected_duration_days: 200
+
+steps:
+  - action: create_customer
+    suffix: "2-interest-late"
+  
+  - action: make_deposit
+    amount_usd: 10_000_000
+  
+  - action: create_proposal
+    amount_usd: 10_000_000
+    terms: std_terms
+  
+  - action: customer_approve
+  
+  - action: wait_for_approval
+  
+  - action: update_collateral
+    collateral_btc: 230
+  
+  - action: wait_for_activation
+  
+  # Special payment behavior: skip first interest, pay after 90+ days
+  - action: on_obligation_due
+    behavior: custom
+    rules:
+      - match:
+          type: interest
+          nth: 1
+        action: skip_until
+        delay_days: 90
+      - match:
+          type: any
+        action: pay_immediately
+  
+  - action: advance_to_expected_end
+    days: 200
+  
+  - action: pay_remaining_outstanding
+  
+  - action: complete_facility

@@ -32,9 +32,11 @@ ENV/
 *.swo
 *~
 
-# Generated output (can regenerate from scenarios)
+# Output
 output/
 
-# OS
+# macOS
 .DS_Store
-Thumbs.db
+
+# Project specific
+*.pyc

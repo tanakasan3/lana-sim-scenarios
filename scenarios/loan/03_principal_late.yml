@@ -1,0 +1,73 @@
+# Loan 03: Principal Late
+# Based on: sim-bootstrap/src/scenarios/principal_late.rs
+# Pattern: Delay interest payments 1 month each, accumulate principal, pay late
+name: principal_late
+description: "Interest delayed by 1 month each cycle, principal paid late"
+customer_suffix: "3-principal-late"
+
+terms:
+  annual_rate: 12
+  duration_months: 3
+  interest_due_days: 0
+  overdue_days: 50
+  liquidation_days: null
+  accrual_interval: EndOfDay
+  accrual_cycle_interval: EndOfMonth
+  one_time_fee_rate: 0.01
+  initial_cvl: 140
+  margin_call_cvl: 125
+  liquidation_cvl: 105
+  disbursal_policy: SingleDisbursal
+
+facility_amount_usd: 10_000_000
+deposit_amount_usd: 10_000_000
+collateral_btc: 230
+
+steps:
+  - action: create_customer
+    suffix: "3-principal-late"
+  
+  - action: make_deposit
+    amount_usd: 10_000_000
+  
+  - action: create_proposal
+    amount_usd: 10_000_000
+    terms: std_terms
+  
+  - action: customer_approve
+  
+  - action: wait_for_approval
+  
+  - action: update_collateral
+    collateral_btc: 230
+  
+  - action: wait_for_activation
+  
+  # Payment behavior: delay each interest by 30 days for first 3 months
+  # Principal accumulates, then paid 30 days late
+  - action: on_obligation_due
+    behavior: custom
+    rules:
+      # First 3 interest cycles: delay 30 days each
+      - match:
+          type: interest
+          nth_le: 3
+        action: delay
+        delay_days: 30
+      # After month 3, pay interest immediately
+      - match:
+          type: interest
+        action: pay_immediately
+      # Accumulate principal, don't pay until end
+      - match:
+          type: principal
+        action: accumulate
+  
+  # After principal is only remaining, pay 30 days late
+  - action: when_only_principal_remains
+    then: delay
+    delay_days: 30
+  
+  - action: pay_accumulated_principal
+  
+  - action: complete_facility

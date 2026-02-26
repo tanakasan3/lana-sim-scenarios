@@ -6,8 +6,8 @@ PIP := $(VENV)/bin/pip
 CLI := $(VENV)/bin/lana-sim
 
 # Paths
-SCENARIO_GEN_REPO := ../lana-scenario-gen
 LANA_BANK_REPO := ../lana-bank
+SCENARIOS_DIR := scenarios
 OUTPUT_DIR := output/generated_scenarios
 
 help:
@@ -15,15 +15,19 @@ help:
 	@echo ""
 	@echo "Usage:"
 	@echo "  make dev            Create venv and install"
-	@echo "  make convert-all    Convert all scenarios from lana-scenario-gen"
-	@echo "  make analyze        Analyze scenario mappings"
+	@echo "  make convert-all    Convert all scenarios from ./scenarios"
+	@echo "  make analyze        Analyze a scenario"
 	@echo "  make deploy         Copy generated code to lana-bank"
 	@echo "  make patch          Deploy + patch lana-bank to call generated scenarios"
 	@echo "  make unpatch        Remove patch from lana-bank"
 	@echo "  make clean          Remove venv and outputs"
 	@echo ""
 	@echo "Single scenario:"
-	@echo "  make convert SCENARIO=path/to/scenario.yml"
+	@echo "  make convert SCENARIO=scenarios/loan/01_timely_payments.yml"
+	@echo "  make show SCENARIO=scenarios/loan/01_timely_payments.yml"
+	@echo ""
+	@echo "Listing:"
+	@echo "  make list           List all scenarios"
 
 dev: $(VENV)/bin/activate
 	@echo "✓ Dev environment ready. Activate with: source $(VENV)/bin/activate"
@@ -38,19 +42,27 @@ $(VENV)/bin/activate:
 convert: $(VENV)/bin/activate
 ifndef SCENARIO
 	@echo "Error: SCENARIO not set"
-	@echo "Usage: make convert SCENARIO=path/to/scenario.yml"
+	@echo "Usage: make convert SCENARIO=scenarios/loan/01_timely_payments.yml"
 	@exit 1
 endif
 	$(CLI) convert $(SCENARIO)
 
-# Convert all scenarios from lana-scenario-gen
+# Show Rust code for a scenario
+show: $(VENV)/bin/activate
+ifndef SCENARIO
+	@echo "Error: SCENARIO not set"
+	@echo "Usage: make show SCENARIO=scenarios/loan/01_timely_payments.yml"
+	@exit 1
+endif
+	$(CLI) show-rust $(SCENARIO)
+
+# List all scenarios
+list: $(VENV)/bin/activate
+	$(CLI) list-scenarios $(SCENARIOS_DIR)
+
+# Convert all local scenarios
 convert-all: $(VENV)/bin/activate
-	@if [ ! -d "$(SCENARIO_GEN_REPO)/scenarios" ]; then \
-		echo "Error: $(SCENARIO_GEN_REPO)/scenarios not found"; \
-		echo "Clone lana-scenario-gen first"; \
-		exit 1; \
-	fi
-	$(CLI) convert-all $(SCENARIO_GEN_REPO)/scenarios $(OUTPUT_DIR) --clean
+	$(CLI) convert-all $(SCENARIOS_DIR) $(OUTPUT_DIR) --clean
 	@echo ""
 	@echo "Generated Rust code in: $(OUTPUT_DIR)/"
 	@ls -la $(OUTPUT_DIR)/
@@ -59,14 +71,10 @@ convert-all: $(VENV)/bin/activate
 analyze: $(VENV)/bin/activate
 ifndef SCENARIO
 	@echo "Analyzing first loan scenario..."
-	$(CLI) analyze $(SCENARIO_GEN_REPO)/scenarios/loan/01_happy_path.yml
+	$(CLI) analyze $(SCENARIOS_DIR)/loan/01_timely_payments.yml
 else
 	$(CLI) analyze $(SCENARIO)
 endif
-
-# List event mappings
-mappings: $(VENV)/bin/activate
-	$(CLI) list-mappings
 
 # Deploy to lana-bank
 deploy: $(VENV)/bin/activate convert-all
@@ -102,6 +110,12 @@ unpatch:
 	else \
 		echo "Not patched, nothing to undo"; \
 	fi
+
+# Verify generated code compiles (requires lana-bank)
+verify: deploy
+	@echo "Verifying generated code compiles..."
+	@cd $(LANA_BANK_REPO) && cargo check -p sim-bootstrap
+	@echo "✓ Generated code compiles"
 
 # Lint
 lint: $(VENV)/bin/activate

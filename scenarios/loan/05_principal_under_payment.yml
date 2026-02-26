@@ -1,0 +1,68 @@
+# Loan 05: Principal Under Payment
+# Based on: sim-bootstrap/src/scenarios/principal_under_payment.rs
+# Pattern: Pay all interest, never pay principal → facility active with outstanding
+name: principal_under_payment
+description: "Interest paid, principal never paid - facility left active with outstanding"
+customer_suffix: "6-principal-under-payment"
+
+# Uses terms with liquidation enabled
+terms:
+  annual_rate: 12
+  duration_months: 3
+  interest_due_days: 0
+  overdue_days: 50
+  liquidation_days: 60  # Auto-liquidation after 60 days overdue
+  accrual_interval: EndOfDay
+  accrual_cycle_interval: EndOfMonth
+  one_time_fee_rate: 0.01
+  initial_cvl: 140
+  margin_call_cvl: 125
+  liquidation_cvl: 105
+  disbursal_policy: SingleDisbursal
+
+facility_amount_usd: 10_000_000
+deposit_amount_usd: 10_000_000
+collateral_btc: 230
+
+# Start 240 days in the past
+start_offset_days: -240
+
+steps:
+  - action: create_customer
+    suffix: "6-principal-under-payment"
+  
+  - action: make_deposit
+    amount_usd: 10_000_000
+  
+  - action: create_proposal
+    amount_usd: 10_000_000
+    terms: std_terms_with_liquidation
+  
+  - action: customer_approve
+  
+  - action: wait_for_approval
+    timeout_days: 30
+  
+  - action: update_collateral
+    collateral_btc: 230
+  
+  - action: wait_for_activation
+    timeout_days: 30
+  
+  # Pay only interest, never principal
+  - action: on_obligation_due
+    behavior: custom
+    rules:
+      - match:
+          type: interest
+        action: pay_immediately
+      - match:
+          type: principal
+        action: skip  # Never pay principal
+  
+  # End when only principal remains (facility still active)
+  - action: when_only_principal_remains
+    then: stop
+  
+  # Do NOT complete - leave facility active with outstanding
+  # Final state: facility active, principal_outstanding > 0

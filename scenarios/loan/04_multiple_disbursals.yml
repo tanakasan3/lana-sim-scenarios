@@ -1,0 +1,71 @@
+# Loan 04: Multiple Disbursals
+# Based on: sim-bootstrap/src/scenarios/disbursal_different_months.rs
+# Pattern: 3 disbursals across different months, all paid on time
+name: disbursal_different_months
+description: "Multiple disbursals across different months - tests MultipleDisbursal policy"
+customer_suffix: "4-disbursal-different-months"
+
+# Uses 12-month terms with MultipleDisbursal policy
+terms:
+  annual_rate: 12
+  duration_months: 12
+  interest_due_days: 0
+  overdue_days: 50
+  liquidation_days: null
+  accrual_interval: EndOfDay
+  accrual_cycle_interval: EndOfMonth
+  one_time_fee_rate: 0.01
+  initial_cvl: 140
+  margin_call_cvl: 125
+  liquidation_cvl: 105
+  disbursal_policy: MultipleDisbursal
+
+facility_amount_usd: 10_000_000
+deposit_amount_usd: 10_000_000
+collateral_btc: 230
+expected_duration_days: 380
+
+steps:
+  - action: create_customer
+    suffix: "4-disbursal-different-months"
+  
+  - action: make_deposit
+    amount_usd: 10_000_000
+  
+  - action: create_proposal
+    amount_usd: 10_000_000
+    terms: std_terms_12m
+  
+  - action: customer_approve
+  
+  - action: wait_for_approval
+  
+  - action: update_collateral
+    collateral_btc: 230
+  
+  - action: wait_for_activation
+  
+  # First disbursal immediately after activation
+  - action: initiate_disbursal
+    amount_usd: 1_000_000
+  
+  # Second disbursal after 30 days
+  - action: schedule_disbursal
+    after_days: 30
+    amount_usd: 2_000_000
+  
+  # Third disbursal after 90 days from activation
+  - action: schedule_disbursal
+    after_days: 90
+    amount_usd: 5_000_000
+  
+  # Pay all obligations on time
+  - action: on_obligation_due
+    behavior: pay_immediately
+  
+  - action: advance_to_expected_end
+    days: 380
+  
+  - action: pay_remaining_outstanding
+  
+  - action: complete_facility

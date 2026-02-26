@@ -1,0 +1,62 @@
+# Loan 01: Timely Payments
+# Based on: sim-bootstrap/src/scenarios/timely_payments.rs
+# Pattern: All obligations paid on time → facility completed
+name: timely_payments
+description: "Pay all obligations on their due dates - happy path"
+customer_suffix: "1-timely-paid"
+
+# Terms configuration (matches helpers::std_terms())
+terms:
+  annual_rate: 12
+  duration_months: 3
+  interest_due_days: 0
+  overdue_days: 50
+  liquidation_days: null  # No auto-liquidation
+  accrual_interval: EndOfDay
+  accrual_cycle_interval: EndOfMonth
+  one_time_fee_rate: 0.01
+  initial_cvl: 140
+  margin_call_cvl: 125
+  liquidation_cvl: 105
+  disbursal_policy: SingleDisbursal
+
+# Amounts
+facility_amount_usd: 10_000_000
+deposit_amount_usd: 10_000_000
+collateral_btc: 230
+expected_duration_days: 95
+
+steps:
+  # Setup
+  - action: create_customer
+    suffix: "1-timely-paid"
+  
+  - action: make_deposit
+    amount_usd: 10_000_000
+  
+  # Create facility
+  - action: create_proposal
+    amount_usd: 10_000_000
+    terms: std_terms
+  
+  - action: customer_approve
+  
+  - action: wait_for_approval
+  
+  # Activate with collateral
+  - action: update_collateral
+    collateral_btc: 230
+  
+  - action: wait_for_activation
+  
+  # Payment behavior
+  - action: on_obligation_due
+    behavior: pay_immediately
+  
+  # End condition
+  - action: advance_to_expected_end
+    days: 95
+  
+  - action: pay_remaining_outstanding
+  
+  - action: complete_facility
